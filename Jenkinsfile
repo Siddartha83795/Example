@@ -41,6 +41,20 @@ pipeline {
             }
         }
 
+        stage('Deploy') {
+            steps {
+                script {
+                    // Stop any existing container
+                    sh "docker stop quickserve-hub || true"
+                    sh "docker rm quickserve-hub || true"
+                    
+                    // Run the new container
+                    // Usage: docker run -d -p <HOST_PORT>:<CONTAINER_PORT> --name <NAME> <IMAGE>
+                    sh "docker run -d -p 80:80 --name quickserve-hub --restart unless-stopped quickserve-hub"
+                }
+            }
+        }
+
 
     }
     
