@@ -31,3 +31,42 @@ jobs:
 
     - name: Run Build
       run: npm run build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_KEY }}
+        script: |
+          # Ensure git is installed
+          sudo dnf install git -y || sudo apt-get install git -y
+          
+          # Clone or Pull repository
+          if [ ! -d "quickserve-hub" ]; then
+            git clone https://github.com/Siddartha83795/Example.git quickserve-hub
+          fi
+          
+          cd quickserve-hub
+          git fetch origin main
+          git reset --hard origin/main
+          
+          # Build image locally on EC2
+          docker build -t quickserve-hub .
+          
+          # Stop existing container
+          docker stop quickserve-hub || true
+          docker rm quickserve-hub || true
+          
+          # Run new container
+          docker run -d \
+            --name quickserve-hub \
+            -p 80:80 \
+            --restart unless-stopped \
+            quickserve-hub
