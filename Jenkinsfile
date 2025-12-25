@@ -57,10 +57,35 @@ pipeline {
             steps {
                 script {
                     def appName = "quickserve-hub"
+                    // Build image
                     if (isUnix()) {
-                        sh "docker build -t ${appName} ."
+                         sh "docker build -t ${appName} ."
                     } else {
-                        bat "docker build -t ${appName} ."
+                         bat "docker build -t ${appName} ."
+                    }
+                }
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    def appName = "quickserve-hub"
+                    def dockerUser = "siddartha83795"
+                    
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        if (isUnix()) {
+                            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                            sh "docker tag ${appName} ${dockerUser}/${appName}:latest"
+                            sh "docker push ${dockerUser}/${appName}:latest"
+                            sh "docker logout"
+                        } else {
+                            // Windows/Bat version
+                            bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                            bat "docker tag ${appName} ${dockerUser}/${appName}:latest"
+                            bat "docker push ${dockerUser}/${appName}:latest"
+                            bat "docker logout"
+                        }
                     }
                 }
             }
@@ -70,6 +95,7 @@ pipeline {
             steps {
                 script {
                     def appName = "quickserve-hub"
+                    def dockerImage = "siddartha83795/quickserve-hub:latest"
                     
                     // Stop container safely
                     try {
@@ -78,8 +104,8 @@ pipeline {
                         } else {
                             bat "docker stop ${appName}"
                         }
-                    } catch (Exception e) {
-                        echo "Container ${appName} not running or failed to stop (ignoring)."
+                    } catch (Exception e) { 
+                        echo "Stop failed (ignoring): ${e.message}" 
                     }
 
                     // Remove container safely
@@ -89,15 +115,17 @@ pipeline {
                         } else {
                             bat "docker rm ${appName}"
                         }
-                    } catch (Exception e) {
-                        echo "Container ${appName} not found or failed to remove (ignoring)."
+                    } catch (Exception e) { 
+                        echo "Remove failed (ignoring): ${e.message}" 
                     }
                     
-                    // Run new container
+                    // Pull and Run new container
                     if (isUnix()) {
-                        sh "docker run -d -p 80:80 --name ${appName} --restart unless-stopped ${appName}"
+                        sh "docker pull ${dockerImage}"
+                        sh "docker run -d -p 80:80 --name ${appName} --restart unless-stopped ${dockerImage}"
                     } else {
-                        bat "docker run -d -p 80:80 --name ${appName} --restart unless-stopped ${appName}"
+                        bat "docker pull ${dockerImage}"
+                        bat "docker run -d -p 80:80 --name ${appName} --restart unless-stopped ${dockerImage}"
                     }
                 }
             }
